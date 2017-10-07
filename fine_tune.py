@@ -12,7 +12,7 @@ import time
 import os
 import shutil
 
-from data_provider import dataloders, dataset_sizes
+from data_provider import dataloders, dataset_sizes, class_names
 
 def save_checkpoint(state, is_best, filename='checkpoint.pth.tar', modeldir='/tmp'):
     if not os.path.exists(modeldir):
@@ -116,7 +116,7 @@ print ('use gpu? {}'.format(use_gpu))
 
 model_ft = models.resnet18(pretrained=True)
 num_ftrs = model_ft.fc.in_features
-model_ft.fc = nn.Linear(num_ftrs, 2)
+model_ft.fc = nn.Linear(num_ftrs, len(class_names))
 
 if use_gpu:
     model_ft = model_ft.cuda()

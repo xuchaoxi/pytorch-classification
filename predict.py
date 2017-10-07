@@ -7,15 +7,15 @@ import time
 import os
 import shutil
 
-from data_provider import dataloders, dataset_sizes
+from data_provider import dataloders, dataset_sizes, class_names
 from util import load_checkpoint
 
 model = models.resnet18(pretrained=False)
 num_ftrs = model.fc.in_features
-model.fc = nn.Linear(num_ftrs, 2)
+model.fc = nn.Linear(num_ftrs, len(class_names))
 use_gpu = torch.cuda.is_available()
 
-resume = '/tmp/model_best.pth.tar'
+resume = '/tmp/pytorch/model_best.pth.tar'
 checkpoint = load_checkpoint(resume)
 start_epoch = checkpoint['epoch']
 best_acc = checkpoint['best_acc']
