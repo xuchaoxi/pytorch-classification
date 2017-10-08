@@ -7,12 +7,15 @@ from torch.optim import lr_scheduler
 from torch.autograd import Variable
 import numpy as np
 import torchvision
-from torchvision import datasets, models, transforms
+from torchvision import models
 import time
 import os
 import shutil
+import logging
+from keras_generic_utils import Progbar
 
-from data_provider import dataloders, dataset_sizes, class_names
+from data_provider import dataloders, dataset_sizes, class_names, batch_nums
+
 
 def save_checkpoint(state, is_best, filename='checkpoint.pth.tar', modeldir='/tmp'):
     if not os.path.exists(modeldir):
@@ -42,14 +45,16 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
             else:
                 model.train(False)  # Set model to evaluate mode
 
+            progbar = Progbar(batch_nums[phase])
+
             running_loss = 0.0
             running_corrects = 0
-
+            num_seen = 0
             # Iterate over data.
-            for data in dataloders[phase]:
+            for batch_id, data in enumerate(dataloders[phase]):
                 # get the inputs
                 inputs, labels = data
-
+                num_seen += len(labels)
                 # wrap them in Variable
                 if use_gpu:
                     inputs = Variable(inputs.cuda())
@@ -74,6 +79,9 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
                 running_loss += loss.data[0]
                 running_corrects += torch.sum(preds == labels.data)
 
+                progbar.add(1, values=[("acc", running_corrects/num_seen), ("loss", loss.data[0])])
+
+            #bar.finish()
             epoch_loss = running_loss / dataset_sizes[phase]
             epoch_acc = running_corrects / dataset_sizes[phase]
 
