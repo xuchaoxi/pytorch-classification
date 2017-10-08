@@ -22,7 +22,7 @@ data_transforms = {
 }
 
 data_dir = 'hymenoptera_data'
-batch_size = 32
+batch_size = 16
 rename = {'train':'ai_challenger_scene_train_20170904', 'val':'ai_challenger_scene_val_20170908'}
 data_dir = os.path.join(os.environ['HOME'], 'VisualSearch')
 image_datasets = {x: datasets.ImageFolder(os.path.join(data_dir, rename[x], 'ImageData256'),
@@ -35,7 +35,7 @@ dataset_sizes = {x: len(image_datasets[x]) for x in ['train', 'val']}
 class_names = image_datasets['train'].classes
 
 batch_nums = {x: int(math.ceil(dataset_sizes[x]/batch_size)) for x in ['train', 'val']}
-print (class_names)
+#print (class_names)
 print (dataset_sizes)
 print (batch_nums)
 
