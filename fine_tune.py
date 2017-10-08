@@ -10,6 +10,7 @@ import torchvision
 from torchvision import models
 import time
 import os
+import sys
 import shutil
 import logging
 from keras_generic_utils import Progbar
@@ -118,101 +119,75 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
     top5 = AverageMeter()
 
     best_model_wts = model.state_dict()
-    best_acc = 0.0
     best_prec1 = 0
+    train_loader = dataloders['train']
+    train_batch_num = batch_nums['train']
 
     for epoch in range(num_epochs):
         print('Epoch {}/{}'.format(epoch, num_epochs - 1))
         print('-' * 10)
 
-        # Each epoch has a training and validation phase
-        for phase in ['train']: #, 'val']:
-            if phase == 'train':
-                scheduler.step()
-                model.train(True)  # Set model to training mode
+        scheduler.step()
+        model.train() # Set model to training mode
+        progbar = Progbar(train_batch_num)
+
+        # Iterate over data.
+        for batch_index, data in enumerate(train_loader):
+            # get the inputs
+            inputs, labels = data
+            target = labels.cuda(async=True)
+            # wrap them in Variable
+            if use_gpu:
+                inputs = Variable(inputs.cuda())
+                labels = Variable(labels.cuda())
             else:
-                model.train(False)  # Set model to evaluate mode
+                inputs, labels = Variable(inputs), Variable(labels)
 
-            progbar = Progbar(batch_nums[phase])
+            # forward
+            outputs = model(inputs)
+            _, preds = torch.max(outputs.data, 1)
+            loss = criterion(outputs, labels)
+            prec1, prec5 = accuracy(outputs.data, target, topk=(1, 5))
+            losses.update(loss.data[0], inputs.size(0))
+            top1.update(prec1[0], inputs.size(0))
+            top5.update(prec5[0], inputs.size(0))
 
-            running_loss = 0.0
-            running_corrects = 0
-            num_seen = 0
-            # Iterate over data.
-            for batch_id, data in enumerate(dataloders[phase]):
-                # get the inputs
-                inputs, labels = data
-                target = labels.cuda(async=True)
-                num_seen += len(labels)
-                # wrap them in Variable
-                if use_gpu:
-                    inputs = Variable(inputs.cuda())
-                    labels = Variable(labels.cuda())
-                else:
-                    inputs, labels = Variable(inputs), Variable(labels)
+            # backward + optimize
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
 
-                # zero the parameter gradients
-                optimizer.zero_grad()
+            # statistics
+            progbar.add(1, values=[("p1", top1.avg), ("p5", top5.avg), ("loss", losses.avg)])
+        # end of an epoch
+        print()
+        print('Train Loss epoch {epoch} {loss.val:.4f} ({loss.avg:.4f})\t'
+               'Prec@1 {top1.val:.3f} ({top1.avg:.3f})\t'
+               'Prec@5 {top5.val:.3f} ({top5.avg:.3f})'.format(
+               epoch=epoch, loss=losses, top1=top1, top5=top5))
+            
+        # evaluate on validation set
+        prec1 = validate(dataloders['val'], model, criterion)
+        is_best = prec1 > best_prec1
+        best_prec1 = max(prec1, best_prec1)
 
-                # forward
-                outputs = model(inputs)
-                _, preds = torch.max(outputs.data, 1)
-                loss = criterion(outputs, labels)
-                prec1, prec5 = accuracy(outputs.data, target, topk=(1, 5))
-                losses.update(loss.data[0], inputs.size(0))
-                top1.update(prec1[0], inputs.size(0))
-                top5.update(prec5[0], inputs.size(0))
-
-                # backward + optimize only if in training phase
-                if phase == 'train':
-                    loss.backward()
-                    optimizer.step()
-
-                # statistics
-                running_loss += loss.data[0]
-                running_corrects += torch.sum(preds == labels.data)
-
-                progbar.add(1, values=[("p1", top1.avg), ("p5", top5.avg), ("loss", losses.avg)])
-
-            #bar.finish()
-            epoch_loss = running_loss / dataset_sizes[phase]
-            epoch_acc = running_corrects / dataset_sizes[phase]
-
-            print ()
-            print('{} Loss: {:.4f} Acc: {:.4f}'.format(
-                phase, epoch_loss, epoch_acc))
-
-            # evaluate on validation set
-            prec1 = validate(dataloders['val'], model, criterion)
-            is_best = prec1 > best_prec1
-            best_prec1 = max(prec1, best_prec1)
-           
+        # deep copy the model
+        if is_best:
+            best_model_wts = model.state_dict()
+            print ('better model obtained at epoch {epoch}'.format(epoch=epoch))
             save_checkpoint({
                     'epoch': epoch,
                     'state_dict': model.state_dict(),
-                    'best_acc': best_acc,
+                    'best_prec1': best_prec1,
                     'optimizer' : optimizer.state_dict(),
-                    }, is_best, filename='checkpoint_epoch{}.pth.tar'.format(epoch))
-
-
-            # deep copy the model
-            if phase == 'val' and epoch_acc > best_acc:
-                best_acc = epoch_acc
-                best_model_wts = model.state_dict()
-                print ('better model obtained at epoch {}'.format(epoch))
-                save_checkpoint({
-                    'epoch': epoch,
-                    'state_dict': model.state_dict(),
-                    'best_acc': best_acc,
-                    'optimizer' : optimizer.state_dict(),
-                    }, 1, filename='checkpoint_epoch{}.pth.tar'.format(epoch))
+                    }, is_best, filename='checkpoint_epoch{epoch}.pth.tar'.format(epoch=epoch))
 
         print()
 
     time_elapsed = time.time() - since
     print('Training complete in {:.0f}m {:.0f}s'.format(
         time_elapsed // 60, time_elapsed % 60))
-    print('Best val Acc: {:4f}'.format(best_acc))
+    print('Best val Acc: {:4f}'.format(best_prec1))
 
     # load best model weights
     model.load_state_dict(best_model_wts)
@@ -222,47 +197,39 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
 use_gpu = torch.cuda.is_available()
 print ('use gpu? {}'.format(use_gpu))
 
-######################################################################
-# Finetuning the convnet
-# ----------------------
-#
-# Load a pretrained model and reset final fully connected layer.
-#
 
-arch = 'resnet'
-arch = 'densenet'
-#model_ft = models.resnet18(pretrained=True)
-model_ft = models.densenet121(pretrained=True)
-if arch == 'resnet':
-    num_ftrs = model_ft.fc.in_features
-    model_ft.fc = nn.Linear(num_ftrs, len(class_names))
-else:
-    num_ftrs = model_ft.classifier.in_features
-    model_ft.classifier = nn.Linear(num_ftrs, len(class_names))
+def main(argv=None):
+    num_epochs = 100
+    arch = 'resnet'
+    arch = 'densenet'
+
+    if arch == 'resnet':
+        model_ft = models.resnet18(pretrained=True)
+        num_ftrs = model_ft.fc.in_features
+        model_ft.fc = nn.Linear(num_ftrs, len(class_names))
+    else:
+        model_ft = models.densenet121(pretrained=True)
+        num_ftrs = model_ft.classifier.in_features
+        model_ft.classifier = nn.Linear(num_ftrs, len(class_names))
 
 
-if use_gpu:
-    model_ft = model_ft.cuda()
+    if use_gpu:
+        model_ft = model_ft.cuda()
 
-criterion = nn.CrossEntropyLoss()
+    criterion = nn.CrossEntropyLoss()
 
-val_acc = validate(dataloders['val'], model_ft, criterion)
-print ('val acc: {}'.format(val_acc))
+    val_acc = validate(dataloders['val'], model_ft, criterion)
+    print ('val hit@1 {acc:.4f}'.format(acc=val_acc))
+    print ('-'*10)
 
-# Observe that all parameters are being optimized
-optimizer_ft = optim.SGD(model_ft.parameters(), lr=0.001, momentum=0.9)
+    # Observe that all parameters are being optimized
+    optimizer_ft = optim.SGD(model_ft.parameters(), lr=0.001, momentum=0.9)
+    # Decay LR by a factor of 0.1 every 10 epochs
+    exp_lr_scheduler = lr_scheduler.StepLR(optimizer_ft, step_size=10, gamma=0.1)
 
-# Decay LR by a factor of 0.1 every 7 epochs
-exp_lr_scheduler = lr_scheduler.StepLR(optimizer_ft, step_size=7, gamma=0.1)
+    model_ft = train_model(model_ft, criterion, optimizer_ft, exp_lr_scheduler, num_epochs=num_epochs)
 
-######################################################################
-# Train and evaluate
-# ^^^^^^^^^^^^^^^^^^
-#
-# It should take around 15-25 min on CPU. On GPU though, it takes less than a
-# minute.
-#
 
-model_ft = train_model(model_ft, criterion, optimizer_ft, exp_lr_scheduler,
-                       num_epochs=25)
+if __name__ == '__main__':
+    sys.exit(main())
 
