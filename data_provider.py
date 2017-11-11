@@ -21,20 +21,24 @@ data_transforms = {
     ]),
 }
 
-data_dir = 'hymenoptera_data'
-batch_size = 16
-rename = {'train':'ai_challenger_scene_train_20170904', 'val':'ai_challenger_scene_val_20170908'}
+batch_size = [50,20]
+rename = {'train':'pigtrain', 'val':'pigval'}
 data_dir = os.path.join(os.environ['HOME'], 'VisualSearch')
-image_datasets = {x: datasets.ImageFolder(os.path.join(data_dir, rename[x], 'ImageData256'),
+image_datasets = {x: datasets.ImageFolder(os.path.join(data_dir, rename[x], 'ImageData'),
                                           data_transforms[x])
                   for x in ['train', 'val']}
-dataloders = {x: torch.utils.data.DataLoader(image_datasets[x], batch_size=batch_size,
+dataloders = {x: torch.utils.data.DataLoader(image_datasets[x], batch_size=batch_size[x=='val'],
                                              shuffle=(x=='train'), num_workers=2)
               for x in ['train', 'val']}
 dataset_sizes = {x: len(image_datasets[x]) for x in ['train', 'val']}
 class_names = image_datasets['train'].classes
 
-batch_nums = {x: int(math.ceil(dataset_sizes[x]/batch_size)) for x in ['train', 'val']}
+batch_nums = {x: int(math.ceil(dataset_sizes[x]/batch_size[x=='val'])) for x in ['train', 'val']}
+
+'''
+with open('pig_classnames', 'w') as f:
+    f.write(' '.join(class_names))
+'''
 #print (class_names)
 print (dataset_sizes)
 print (batch_nums)
