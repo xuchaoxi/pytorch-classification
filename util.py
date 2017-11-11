@@ -1,9 +1,10 @@
 from __future__ import print_function, division
 
 import torch
+import shutil
 import os
 
-DEFAULT_MODEL_DIR = '/tmp/pytorch'
+DEFAULT_MODEL_DIR = '/home/xcx/VisualSearch/pigtest/pytorch/resnet101'
 
 def save_checkpoint(state, is_best, filename='checkpoint.pth.tar', modeldir=DEFAULT_MODEL_DIR):
     if not os.path.exists(modeldir):
