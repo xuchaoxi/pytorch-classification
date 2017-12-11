@@ -48,7 +48,7 @@ def parse_args():
     return args
 
 
-def validate(val_loader, model, criterion):
+def validate(val_loader, model, criterion, logger):
     print_freq = 100
     batch_time = AverageMeter()
     losses = AverageMeter()
@@ -60,10 +60,9 @@ def validate(val_loader, model, criterion):
 
     end = time.time()
     for i, (inputs, target) in enumerate(val_loader):
-        target = target.cuda(async=True)
         if use_gpu:
             input_var = Variable(inputs.cuda())
-            target_var = Variable(target.cuda())
+            target_var = Variable(target.cuda(async=True))
         else:
             input_var, target_var = Variable(inputs), Variable(target)
 
@@ -81,6 +80,8 @@ def validate(val_loader, model, criterion):
         batch_time.update(time.time() - end)
         end = time.time()
 
+        logger.append([None, None, losses.avg, None, top1.avg])
+
         if i % print_freq == 0:
             print('Test: [{0}/{1}]\t'
                   'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
@@ -95,7 +96,7 @@ def validate(val_loader, model, criterion):
 
     return top1.avg
 
-def train_model(model, criterion, optimizer, scheduler, num_epochs, logger):
+def train_model(model, criterion, optimizer, scheduler, num_epochs, logger, checkpoint):
     since = time.time()
 
     losses = AverageMeter()
@@ -110,7 +111,7 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs, logger):
     stop = 0
 
     for epoch in range(num_epochs):
-        print('Epoch [{} | {}] LR: {}'.format(epoch, num_epochs - 1), state['lr'])
+        print('Epoch [{} | {}] LR: {}'.format(epoch, num_epochs - 1, scheduler.get_lr()[0]))
         print('-' * 10)
 
         scheduler.step()
@@ -143,6 +144,7 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs, logger):
             optimizer.step()
 
             # statistics
+            logger.append([scheduler.get_lr()[0], losses.avg, None, top1.avg, None])
             progbar.add(1, values=[("p1", top1.avg), ("p5", top5.avg), ("loss", losses.avg)])
         # end of an epoch
         print()
@@ -152,7 +154,7 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs, logger):
                epoch=epoch, loss=losses, top1=top1, top5=top5))
             
         # evaluate on validation set
-        prec1 = validate(dataloders['val'], model, criterion)
+        prec1 = validate(dataloders['val'], model, criterion, logger)
         is_best = prec1 > best_prec1
         best_prec1 = max(prec1, best_prec1)
        
@@ -167,9 +169,9 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs, logger):
                     'state_dict': model.state_dict(),
                     'best_prec1': best_prec1,
                     'optimizer' : optimizer.state_dict(),
-                    }, is_best, filename='checkpoint_epoch{epoch}.pth.tar'.format(epoch=epoch), modeldir=modeldir)
+                    }, is_best, filename='checkpoint_epoch{epoch}.pth.tar'.format(epoch=epoch), checkpoint=checkpoint)
             stop = 0
-        if(stop >= 10):
+        if(stop >= 20):
             print("Early stop happend at {}\n".format(epoch))
             break
 
@@ -230,7 +232,7 @@ def main(argv=None):
     # Decay LR by a factor of 0.1 every 10 epochs
     exp_lr_scheduler = lr_scheduler.StepLR(optimizer, step_size=10, gamma=args.gamma)
 
-    model = train_model(model, criterion, optimizer, exp_lr_scheduler, args.num_epochs, logger)
+    model = train_model(model, criterion, optimizer, exp_lr_scheduler, args.num_epochs, logger, args.checkpoint)
 
 
 if __name__ == '__main__':

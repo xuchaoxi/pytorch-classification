@@ -30,9 +30,10 @@ class Logger(object):
                 for numbers in self.file:
                     numbers = numbers.rstrip().split(',')
                     for i in range(0, len(numbers)):
-                        self.numbers[self.names[i]].append(numbers[i])
+                        if numbers[i] != '':
+                            self.numbers[self.names[i]].append(numbers[i])
                 self.file.close()
-                self.file = open(fpath, 'a')  
+                self.file = open(fpath, 'a')
             else:
                 self.file = open(fpath, 'w')
 
@@ -52,6 +53,9 @@ class Logger(object):
     def append(self, numbers):
         assert len(self.names) == len(numbers), 'Numbers do not match names'
         for index, num in enumerate(numbers):
+            if num == None:
+                self.file.write(',')
+                continue
             self.file.write("{0:.6f}".format(num))
             self.file.write(',')
             self.numbers[self.names[index]].append(num)

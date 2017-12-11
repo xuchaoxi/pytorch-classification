@@ -6,14 +6,14 @@ import os
 
 DEFAULT_MODEL_DIR = '/home/xcx/VisualSearch/checkpoint'
 
-def save_checkpoint(state, is_best, filename='checkpoint.pth.tar', modeldir=DEFAULT_MODEL_DIR):
-    if not os.path.exists(modeldir):
-        os.makedirs(modeldir)
-    newfile = os.path.join(modeldir, filename)
+def save_checkpoint(state, is_best, filename='checkpoint.pth.tar', checkpoint=DEFAULT_MODEL_DIR):
+    if not os.path.exists(checkpoint):
+        os.makedirs(checkpoint)
+    newfile = os.path.join(checkpoint, filename)
     torch.save(state, newfile)
     print ('model saved at {}'.format(newfile))
     if is_best:
-        shutil.copyfile(newfile, os.path.join(modeldir,'model_best.pth.tar'))
+        shutil.copyfile(newfile, os.path.join(checkpint,'model_best.pth.tar'))
 
 
 def load_checkpoint(filename='model_best.pth.tar', modeldir=DEFAULT_MODEL_DIR):
