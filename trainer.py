@@ -7,78 +7,49 @@ from torch.optim import lr_scheduler
 from torch.autograd import Variable
 import numpy as np
 import torchvision
-from torchvision import models
+import models
 import time
 import os
 import sys
 import shutil
 import argparse
 import logging
-from keras_generic_utils import Progbar
-from util import save_checkpoint, load_checkpoint
+from utils.keras_generic_utils import Progbar
+from utils import save_checkpoint, load_checkpoint, AverageMeter, Logger, accuracy
 
 from constant import ROOT_PATH
+from data_provider import dataloders, class_names, batch_nums
 
-from data_provider import dataloders, dataset_sizes, class_names, batch_nums
 
-model_names = ['resnet101', 'densenet', 'resnet152']
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+model_names = ['lenet', 'alexnet', 'googlenet', 'vgg16',  'vgg19_bn', 'resnet18', 'resnet34', 
+                'resnet50', 'resnet101', 'densenet121', 'inception_v3']
+#os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+
+use_gpu = torch.cuda.is_available()
+print ('use gpu? {}'.format(use_gpu))
 
 def parse_args():
-    parser = argparse.ArgumentParser(description='')
-    parser.add_argument('--arch', '-a', metavar='ARCH', default='resnet', 
+    parser = argparse.ArgumentParser(description='PyTorch CIFAR10 Training')
+    parser.add_argument('--arch', '-a', metavar='ARCH', default='resnet18', 
                         choices=model_names, help='model architecture: ' + 
                         ' | '.join(model_names) + ' (default: resnet18)')
+    parser.add_argument('--epochs', default=300, type=int, metavar='N',
+                        help='number of total epochs to run')
+    parser.add_argument('--lr', '--learning-rate', default=0.01, type=float,
+                        metavar='LR', help='initial learning rate')
+    parser.add_argument('--gamma', type=float, default=0.1, help='LR is multiplied by gamma on schedule.')
+    parser.add_argument('--momentum', default=0.9, type=float, metavar='M',
+                        help='momentum')
+    parser.add_argument('-c', '--checkpoint', default='checkpoint', type=str, metavar='PATH',
+                        help='path to save checkpoint (default: checkpoint)')
+    parser.add_argument('--resume', default='', type=str, metavar='PATH',
+                        help='path to latest checkpoint (default: none)')
     args = parser.parse_args()
     return args
 
-class AverageMeter(object):
-    """Computes and stores the average and current value"""
-    def __init__(self):
-        self.reset()
-
-    def reset(self):
-        self.val = 0
-        self.avg = 0
-        self.sum = 0
-        self.count = 0
-
-    def update(self, val, n=1):
-        self.val = val
-        self.sum += val * n
-        self.count += n
-        self.avg = self.sum / self.count
-
-
-def accuracy(output, target, topk=(1,)):
-    """Computes the precision@k for the specified values of k"""
-    maxk = max(topk)
-    batch_size = target.size(0)
-
-    _, pred = output.topk(maxk, 1, True, True)
-    pred = pred.t()
-    correct = pred.eq(target.view(1, -1).expand_as(pred))
-
-    res = []
-    for k in topk:
-        correct_k = correct[:k].view(-1).float().sum(0, keepdim=True)
-        res.append(correct_k.mul_(100.0 / batch_size))
-    return res
-
-'''
-def save_checkpoint(state, is_best, filename='checkpoint.pth.tar', modeldir='/tmp'):
-    if not os.path.exists(modeldir):
-        os.makedirs(modeldir)
-    newfile = os.path.join(modeldir, filename)
-    torch.save(state, newfile)
-    print ('model saved at {}'.format(newfile))
-    if is_best:
-        shutil.copyfile(newfile, os.path.join(modeldir,'model_best.pth.tar'))
-'''
-
 
 def validate(val_loader, model, criterion):
-    print_freq = 10
+    print_freq = 100
     batch_time = AverageMeter()
     losses = AverageMeter()
     top1 = AverageMeter()
@@ -90,8 +61,6 @@ def validate(val_loader, model, criterion):
     end = time.time()
     for i, (inputs, target) in enumerate(val_loader):
         target = target.cuda(async=True)
-        #input_var = torch.autograd.Variable(input, volatile=True)
-        #target_var = torch.autograd.Variable(target, volatile=True)
         if use_gpu:
             input_var = Variable(inputs.cuda())
             target_var = Variable(target.cuda())
@@ -126,7 +95,7 @@ def validate(val_loader, model, criterion):
 
     return top1.avg
 
-def train_model(model, criterion, optimizer, scheduler, num_epochs, modeldir):
+def train_model(model, criterion, optimizer, scheduler, num_epochs, logger):
     since = time.time()
 
     losses = AverageMeter()
@@ -141,7 +110,7 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs, modeldir):
     stop = 0
 
     for epoch in range(num_epochs):
-        print('Epoch {}/{}'.format(epoch, num_epochs - 1))
+        print('Epoch [{} | {}] LR: {}'.format(epoch, num_epochs - 1), state['lr'])
         print('-' * 10)
 
         scheduler.step()
@@ -152,20 +121,18 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs, modeldir):
         for batch_index, data in enumerate(train_loader):
             # get the inputs
             inputs, labels = data
-            target = labels.cuda(async=True)
             # wrap them in Variable
             if use_gpu:
                 inputs = Variable(inputs.cuda())
-                labels = Variable(labels.cuda())
+                labels = Variable(labels.cuda(async=True))
             else:
                 inputs, labels = Variable(inputs), Variable(labels)
 
             # forward
-            outputs = torch.nn.DataParallel(model)(inputs)
-            # outputs = model(inputs)
-            _, preds = torch.max(outputs.data, 1)
+            outputs = model(inputs)
             loss = criterion(outputs, labels)
-            prec1, prec5 = accuracy(outputs.data, target, topk=(1, 5))
+
+            prec1, prec5 = accuracy(outputs.data, labels.data, topk=(1, 5))
             losses.update(loss.data[0], inputs.size(0))
             top1.update(prec1[0], inputs.size(0))
             top5.update(prec5[0], inputs.size(0))
@@ -204,6 +171,7 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs, modeldir):
             stop = 0
         if(stop >= 10):
             print("Early stop happend at {}\n".format(epoch))
+            break
 
         print()
 
@@ -217,48 +185,52 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs, modeldir):
     return model
 
 
-use_gpu = torch.cuda.is_available()
-print ('use gpu? {}'.format(use_gpu))
-
 
 def main(argv=None):
 
     args = parse_args()
-    num_epochs = 100
-    modeldir = os.path.join(ROOT_PATH, 'pigtrain', 'pytorch', args.arch)
-    if not os.path.exists(modeldir):
-        os.makedirs(modeldir)
 
-    if args.arch == 'resnet101':
-        model_ft = models.resnet101(pretrained=True)
-        num_ftrs = model_ft.fc.in_features
-        model_ft.fc = nn.Linear(num_ftrs, len(class_names))
-    elif args.arch == 'resnet152':
-        model_ft = models.resnet152(pretrained=True)
-        num_ftrs = model_ft.fc.in_features
-        model_ft.fc = nn.Linear(num_ftrs, len(class_names))
-    elif args.arch == 'densenet':
-        model_ft = models.densenet121(pretrained=True)
-        num_ftrs = model_ft.classifier.in_features
-        model_ft.classifier = nn.Linear(num_ftrs, len(class_names))
+    start_epoch = args.start_epoch
+    if not os.path.isdir(args.checkpoint):
+        mkidr_p(args.checkpoint)
 
+    print("==> creating model '{}'".format(args.arch))
+    model = models.__dict__[args.arch](num_classes=len(class_names))
 
     if use_gpu:
-        model_ft = model_ft.cuda()
+        model = model.cuda()
+
+    print('    Total params: %.2fM' % (sum(p.numel() for p in model.parameters())/1000000.0))
+
+    title = 'cifar-10-' + args.arch
+    if args.resume:
+        print('==> Resuming from checkpoint...')
+        assert os.path.isfile(args.resume), 'Error: no checkpoint directory found!'
+        args.checkpoint = os.path.dirname(args.resume)
+        checkpoint = torch.load(args.resume)
+        best_acc = checkpoint['best_acc']
+        start_epoch = checkpoint['epoch']
+        model.load_state_dict(checkpoint['state_dict'])
+        optimizer.load_state_dict(checkpoint['optimizer'])
+        logger = Logger(os.path.join(args.checkpoint, 'log.txt'), title=title, resume=True)
+    else:
+        logger = Logger(os.path.join(args.checkpoint, 'log.txt'), title=title)
+        logger.set_names(['Learning Rate', 'Train Loss', 'Valid Loss', 'Train Acc.', 'Valid Acc.'])
 
     criterion = nn.CrossEntropyLoss()
 
-    '''
-    val_acc = validate(dataloders['val'], model_ft, criterion)
-    print ('val hit@1 {acc:.4f}'.format(acc=val_acc))
-    print ('-'*10)
-    '''
-    # Observe that all parameters are being optimized
-    optimizer_ft = optim.SGD(model_ft.parameters(), lr=0.001, momentum=0.9)
-    # Decay LR by a factor of 0.1 every 10 epochs
-    exp_lr_scheduler = lr_scheduler.StepLR(optimizer_ft, step_size=10, gamma=0.1)
+    if args.evaluate:
+        print('\nEvaluating ...')
+        val_acc = validate(dataloders['val'], model, criterion)
+        print ('val hit@1 {acc:.4f}'.format(acc=val_acc))
+        print ('-'*10)
 
-    model_ft = train_model(model_ft, criterion, optimizer_ft, exp_lr_scheduler, num_epochs, modeldir)
+    # Observe that all parameters are being optimized
+    optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum)
+    # Decay LR by a factor of 0.1 every 10 epochs
+    exp_lr_scheduler = lr_scheduler.StepLR(optimizer, step_size=10, gamma=args.gamma)
+
+    model = train_model(model, criterion, optimizer, exp_lr_scheduler, args.num_epochs, logger)
 
 
 if __name__ == '__main__':
