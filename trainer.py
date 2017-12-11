@@ -23,6 +23,10 @@ from data_provider import dataloders, class_names, batch_nums
 
 model_names = ['lenet', 'alexnet', 'googlenet', 'vgg16',  'vgg19_bn', 'resnet18', 'resnet34', 
                 'resnet50', 'resnet101', 'densenet121', 'inception_v3']
+model_names = sorted(name for name in models.__dict__
+    if name.islower() and not name.startswith("__")
+    and callable(models.__dict__[name]))
+print model_names
 #os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
 use_gpu = torch.cuda.is_available()
@@ -49,7 +53,6 @@ def parse_args():
 
 
 def validate(val_loader, model, criterion, logger):
-    print_freq = 100
     batch_time = AverageMeter()
     losses = AverageMeter()
     top1 = AverageMeter()
@@ -59,6 +62,8 @@ def validate(val_loader, model, criterion, logger):
     model.eval()
 
     end = time.time()
+
+    progbar = Progbar(batch_nums['val'])
     for i, (inputs, target) in enumerate(val_loader):
         if use_gpu:
             input_var = Variable(inputs.cuda())
@@ -81,7 +86,9 @@ def validate(val_loader, model, criterion, logger):
         end = time.time()
 
         logger.append([None, None, losses.avg, None, top1.avg])
+        progbar.add(1, values=[("p1", top1.avg), ("p5", top5.avg), ("loss", losses.avg)])
 
+        '''
         if i % print_freq == 0:
             print('Test: [{0}/{1}]\t'
                   'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
@@ -90,13 +97,13 @@ def validate(val_loader, model, criterion, logger):
                   'Prec@5 {top5.val:.3f} ({top5.avg:.3f})'.format(
                    i, len(val_loader), batch_time=batch_time, loss=losses,
                    top1=top1, top5=top5))
-
+        '''
     print(' * Prec@1 {top1.avg:.3f} Prec@5 {top5.avg:.3f}'
           .format(top1=top1, top5=top5))
 
     return top1.avg
 
-def train_model(model, criterion, optimizer, scheduler, num_epochs, logger, checkpoint):
+def train_model(model, criterion, optimizer, scheduler, logger):
     since = time.time()
 
     losses = AverageMeter()
@@ -110,7 +117,7 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs, logger, chec
 
     stop = 0
 
-    for epoch in range(num_epochs):
+    for epoch in range(args.start_epoch, args.num_epochs):
         print('Epoch [{} | {}] LR: {}'.format(epoch, num_epochs - 1, scheduler.get_lr()[0]))
         print('-' * 10)
 
@@ -169,7 +176,7 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs, logger, chec
                     'state_dict': model.state_dict(),
                     'best_prec1': best_prec1,
                     'optimizer' : optimizer.state_dict(),
-                    }, is_best, filename='checkpoint_epoch{epoch}.pth.tar'.format(epoch=epoch), checkpoint=checkpoint)
+                    }, is_best, filename='checkpoint_epoch{epoch}.pth.tar'.format(epoch=epoch), checkpoint=args.checkpoint)
             stop = 0
         if(stop >= 20):
             print("Early stop happend at {}\n".format(epoch))
@@ -191,8 +198,8 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs, logger, chec
 def main(argv=None):
 
     args = parse_args()
+    global args
 
-    start_epoch = args.start_epoch
     if not os.path.isdir(args.checkpoint):
         mkidr_p(args.checkpoint)
 
@@ -210,8 +217,8 @@ def main(argv=None):
         assert os.path.isfile(args.resume), 'Error: no checkpoint directory found!'
         args.checkpoint = os.path.dirname(args.resume)
         checkpoint = torch.load(args.resume)
-        best_acc = checkpoint['best_acc']
-        start_epoch = checkpoint['epoch']
+        best_acc = checkpoint['best_prec1']
+        args.start_epoch = checkpoint['epoch']
         model.load_state_dict(checkpoint['state_dict'])
         optimizer.load_state_dict(checkpoint['optimizer'])
         logger = Logger(os.path.join(args.checkpoint, 'log.txt'), title=title, resume=True)
@@ -232,7 +239,7 @@ def main(argv=None):
     # Decay LR by a factor of 0.1 every 10 epochs
     exp_lr_scheduler = lr_scheduler.StepLR(optimizer, step_size=10, gamma=args.gamma)
 
-    model = train_model(model, criterion, optimizer, exp_lr_scheduler, args.num_epochs, logger, args.checkpoint)
+    model = train_model(model, criterion, optimizer, exp_lr_scheduler, start_epoch, logger)
 
 
 if __name__ == '__main__':
