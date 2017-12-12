@@ -65,11 +65,12 @@ def validate(val_loader, model, criterion, logger):
 
     end = time.time()
 
+    print()
     progbar = Progbar(batch_nums['val'])
     for i, (inputs, target) in enumerate(val_loader):
         if use_gpu:
             input_var = Variable(inputs.cuda(), volatile=True)
-            target_var = Variable(target.cuda(async=True))
+            target_var = Variable(target.cuda())
         else:
             input_var, target_var = Variable(inputs), Variable(target)
 
@@ -100,6 +101,7 @@ def validate(val_loader, model, criterion, logger):
                    i, len(val_loader), batch_time=batch_time, loss=losses,
                    top1=top1, top5=top5))
         '''
+    print()
     print(' * Prec@1 {top1.avg:.3f} Prec@5 {top5.avg:.3f}'
           .format(top1=top1, top5=top5))
 
