@@ -170,7 +170,7 @@ def train_model(model, criterion, optimizer, scheduler, logger):
         best_prec1 = max(prec1, best_prec1)
        
         stop += 1
-        print(' * Best Prec@1 {top1.avg:.3f}'.format(top1=best_prec1))
+        print(' * Best Prec@1 {top1:.3f}'.format(top1=best_prec1))
 
         # deep copy the model
         if is_best:
@@ -184,7 +184,7 @@ def train_model(model, criterion, optimizer, scheduler, logger):
                     }, is_best, filename='checkpoint_epoch{epoch}.pth.tar'.format(epoch=epoch), checkpoint=args.checkpoint)
             stop = 0
         if(stop >= 20):
-            print("Early stop happend at {}\n".format(epoch))
+            print("\nEarly stop happend at {}\n".format(epoch))
             break
 
         print()
