@@ -17,7 +17,9 @@ from util import load_checkpoint
 from constant import ROOT_PATH
 
 
-model_names = ['resnet101', 'densenet', 'resnet152', 'inception_v3']
+model_names = sorted(name for name in models.__dict__
+    if name.islower() and not name.startswith("__")
+    and callable(models.__dict__[name]))
 os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 
 data_transforms = transforms.Compose([
@@ -35,6 +37,8 @@ def parse_args():
     parser.add_argument('--arch', '-a', metavar='ARCH', default='resnet',
                         choices=model_names, help='model architecture: ' + 
                         ' | '.join(model_names) + ' (default: resnet18)')
+    parser.add_argument('--resume', default='', type=str, metavar='PATH',
+                        help='path to latest checkpoint (default: none)')
     args = parser.parse_args()
     return args
 
@@ -66,12 +70,7 @@ def test(model, res_dir):
             output = model(im_data)
             output = m(output)
             max_p, index = torch.max(output.data, 1)
-            '''  
-            # worse method
-            if max_p[0] >= 0.4:
-                output.data = torch.zeros(1,30)
-                output.data[0][index[0]] = 1.
-            '''
+
             res[p_id.split('.')[0]] = output.data
             for k in range(len(class_names)):
                 fw.write('{},{},{}\n'.format(p_id.split('.')[0], class_names[k], output.data[0][k]))
@@ -89,8 +88,6 @@ def test(model, res_dir):
 def main(rootpath=ROOT_PATH):
     args = parse_args()
 
-    resume = os.path.join(rootpath, 'pigtrain', 'pytorch/1126', args.arch, 'model_best.pth.tar')
-    res_dir = os.path.join(rootpath, 'pigtest', 'pytorch/1126', args.arch)
 
     if args.arch == 'resnet101':
         model = models.resnet101(pretrained=False)

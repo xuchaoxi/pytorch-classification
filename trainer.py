@@ -235,10 +235,11 @@ def main(argv=None):
     criterion = nn.CrossEntropyLoss()
 
     if args.evaluate:
-        print('\nEvaluating ...')
+        print('\nEvaluating only ...')
         val_acc = validate(dataloders['val'], model, criterion)
         print ('val hit@1 {acc:.4f}'.format(acc=val_acc))
         print ('-'*10)
+        return
 
     # Observe that all parameters are being optimized
     optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum)
