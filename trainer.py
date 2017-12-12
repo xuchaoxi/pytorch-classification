@@ -15,18 +15,16 @@ import shutil
 import argparse
 import logging
 from utils.keras_generic_utils import Progbar
-from utils import save_checkpoint, load_checkpoint, AverageMeter, Logger, accuracy
+from utils import save_checkpoint, load_checkpoint, AverageMeter, Logger, accuracy, mkdir_p
 
 from constant import ROOT_PATH
 from data_provider import dataloders, class_names, batch_nums
 
 
-model_names = ['lenet', 'alexnet', 'googlenet', 'vgg16',  'vgg19_bn', 'resnet18', 'resnet34', 
-                'resnet50', 'resnet101', 'densenet121', 'inception_v3']
 model_names = sorted(name for name in models.__dict__
     if name.islower() and not name.startswith("__")
     and callable(models.__dict__[name]))
-print model_names
+print(model_names)
 #os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
 use_gpu = torch.cuda.is_available()
@@ -48,6 +46,10 @@ def parse_args():
                         help='path to save checkpoint (default: checkpoint)')
     parser.add_argument('--resume', default='', type=str, metavar='PATH',
                         help='path to latest checkpoint (default: none)')
+    parser.add_argument('-e', '--evaluate', dest='evaluate', action='store_true',
+                        help='evaluate model on validation set')
+    parser.add_argument('--start-epoch', default=0, type=int, metavar='N',
+                        help='manual epoch number (useful on restarts)')
     args = parser.parse_args()
     return args
 
@@ -117,8 +119,8 @@ def train_model(model, criterion, optimizer, scheduler, logger):
 
     stop = 0
 
-    for epoch in range(args.start_epoch, args.num_epochs):
-        print('Epoch [{} | {}] LR: {}'.format(epoch, num_epochs - 1, scheduler.get_lr()[0]))
+    for epoch in range(args.start_epoch, args.epochs):
+        print('Epoch [{} | {}] LR: {}'.format(epoch, args.epochs - 1, scheduler.get_lr()[0]))
         print('-' * 10)
 
         scheduler.step()
@@ -197,11 +199,11 @@ def train_model(model, criterion, optimizer, scheduler, logger):
 
 def main(argv=None):
 
-    args = parse_args()
     global args
+    args = parse_args()
 
     if not os.path.isdir(args.checkpoint):
-        mkidr_p(args.checkpoint)
+        mkdir_p(args.checkpoint)
 
     print("==> creating model '{}'".format(args.arch))
     model = models.__dict__[args.arch](num_classes=len(class_names))
@@ -239,7 +241,7 @@ def main(argv=None):
     # Decay LR by a factor of 0.1 every 10 epochs
     exp_lr_scheduler = lr_scheduler.StepLR(optimizer, step_size=10, gamma=args.gamma)
 
-    model = train_model(model, criterion, optimizer, exp_lr_scheduler, start_epoch, logger)
+    model = train_model(model, criterion, optimizer, exp_lr_scheduler, logger)
 
 
 if __name__ == '__main__':

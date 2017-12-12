@@ -7,7 +7,7 @@ import torch.nn.functional as F
 
 from torch.autograd import Variable
 
-__all__ = ['desenet_cifar']
+__all__ = ['densenet_cifar']
 
 class Bottleneck(nn.Module):
     def __init__(self, in_planes, growth_rate):
