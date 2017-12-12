@@ -98,6 +98,6 @@ def DenseNet201():
 def DenseNet161():
     return DenseNet(Bottleneck, [6,12,36,24], growth_rate=48)
 
-def densenet_cifar():
-    return DenseNet(Bottleneck, [6,12,24,16], growth_rate=12)
+def densenet_cifar(**kwargs):
+    return DenseNet(Bottleneck, [6,12,24,16], growth_rate=12, **kwargs)
 
