@@ -120,7 +120,6 @@ def train_model(model, criterion, optimizer, scheduler, logger):
     train_batch_num = batch_nums['train']
 
     stop = 0
-    save_dir = os.path.join(args.checkpoint, '_', args.arch, '_', str(args.lr))
 
     for epoch in range(args.start_epoch, args.epochs):
         print('Epoch [{} | {}] LR: {}'.format(epoch, args.epochs - 1, scheduler.get_lr()[0]))
@@ -181,7 +180,7 @@ def train_model(model, criterion, optimizer, scheduler, logger):
                     'state_dict': model.state_dict(),
                     'best_prec1': best_prec1,
                     'optimizer' : optimizer.state_dict(),
-                    }, is_best, filename='checkpoint_epoch{epoch}.pth.tar'.format(epoch=epoch), checkpoint=save_dir)
+                    }, is_best, filename='checkpoint_epoch{epoch}.pth.tar'.format(epoch=epoch), checkpoint=args.checkpoint)
             stop = 0
         if(stop >= 20):
             print("Early stop happend at {}\n".format(epoch))
@@ -204,6 +203,8 @@ def main(argv=None):
 
     global args
     args = parse_args()
+
+    args.checkpoint = os.path.join(args.checkpoint, '_'+args.arch, '_lr_'+str(args.lr))
 
     if not os.path.isdir(args.checkpoint):
         mkdir_p(args.checkpoint)
