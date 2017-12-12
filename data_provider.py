@@ -31,8 +31,8 @@ dataset_sizes = {x: len(image_datasets[x]) for x in ['train', 'val']}
 
 batch_nums = {x: int(math.ceil(dataset_sizes[x]/batch_size)) for x in ['train', 'val']}
 
-print('dataset_size: ', dataset_sizes)
 print ('batch_size: ', batch_size, '\nbatch_nums: ', batch_nums)
+print('dataset_sizes: ', dataset_sizes)
 
 class_names = ('plane', 'car', 'bird', 'cat',
            'deer', 'dog', 'frog', 'horse', 'ship', 'truck')

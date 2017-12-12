@@ -68,7 +68,7 @@ def validate(val_loader, model, criterion, logger):
     progbar = Progbar(batch_nums['val'])
     for i, (inputs, target) in enumerate(val_loader):
         if use_gpu:
-            input_var = Variable(inputs.cuda())
+            input_var = Variable(inputs.cuda(), volatile=True)
             target_var = Variable(target.cuda(async=True))
         else:
             input_var, target_var = Variable(inputs), Variable(target)
@@ -78,7 +78,7 @@ def validate(val_loader, model, criterion, logger):
         loss = criterion(output, target_var)
 
         # measure accuracy and record loss
-        prec1, prec5 = accuracy(output.data, target, topk=(1, 5))
+        prec1, prec5 = accuracy(output.data, target_var.data, topk=(1, 5))
         losses.update(loss.data[0], inputs.size(0))
         top1.update(prec1[0], inputs.size(0))
         top5.update(prec5[0], inputs.size(0))
