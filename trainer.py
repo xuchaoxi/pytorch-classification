@@ -102,7 +102,7 @@ def validate(val_loader, model, criterion, logger):
                    top1=top1, top5=top5))
         '''
     print()
-    print(' * Prec@1 {top1.avg:.3f} Prec@5 {top5.avg:.3f}'
+    print(' * Current Prec@1 {top1.avg:.3f} Prec@5 {top5.avg:.3f}'
           .format(top1=top1, top5=top5))
 
     return top1.avg
@@ -170,6 +170,7 @@ def train_model(model, criterion, optimizer, scheduler, logger):
         best_prec1 = max(prec1, best_prec1)
        
         stop += 1
+        print(' * Best Prec@1 {top1.avg:.3f}'.format(top1=best_prec1))
 
         # deep copy the model
         if is_best:
