@@ -122,11 +122,12 @@ def train_model(model, criterion, optimizer, scheduler, logger):
     stop = 0
 
     for epoch in range(args.start_epoch, args.epochs):
-        print('Epoch [{} | {}] LR: {}'.format(epoch, args.epochs - 1, scheduler.get_lr()[0]))
-        print('-' * 10)
 
         scheduler.step()
         model.train() # Set model to training mode
+
+        print('Epoch [{} | {}] LR: {}'.format(epoch, args.epochs - 1, scheduler.get_lr()[0]))
+        print('-' * 10)
         progbar = Progbar(train_batch_num)
 
         # Iterate over data.
@@ -205,7 +206,7 @@ def main(argv=None):
     global args
     args = parse_args()
 
-    args.checkpoint = os.path.join(args.checkpoint, '_'+args.arch, '_lr_'+str(args.lr))
+    args.checkpoint = os.path.join(args.checkpoint, args.arch+'_lr_'+str(args.lr))
 
     if not os.path.isdir(args.checkpoint):
         mkdir_p(args.checkpoint)
