@@ -43,9 +43,10 @@ class Logger(object):
         # initialize numbers as empty list
         self.numbers = {}
         self.names = names
-        for _, name in enumerate(self.names):
+        for i, name in enumerate(self.names):
             self.file.write(name)
-            self.file.write(',')
+            if i < len(self.names)-1:
+                self.file.write(',')
             self.numbers[name] = []
         self.file.write('\n')
         self.file.flush()

@@ -217,11 +217,15 @@ def main(argv=None):
     if use_gpu:
         model = model.cuda()
 
+    # Observe that all parameters are being optimized
+    optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum)
+
     print('    Total params: %.2fM' % (sum(p.numel() for p in model.parameters())/1000000.0))
 
     title = 'cifar-10-' + args.arch
     if args.resume:
         print('==> Resuming from checkpoint...')
+        print(args.resume)
         assert os.path.isfile(args.resume), 'Error: no checkpoint directory found!'
         args.checkpoint = os.path.dirname(args.resume)
         checkpoint = torch.load(args.resume)
@@ -243,8 +247,6 @@ def main(argv=None):
         print ('-'*10)
         return
 
-    # Observe that all parameters are being optimized
-    optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum)
     # Decay LR by a factor of 0.1 every 10 epochs
     exp_lr_scheduler = lr_scheduler.StepLR(optimizer, step_size=10, gamma=args.gamma)
 
