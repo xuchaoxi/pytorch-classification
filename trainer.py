@@ -88,7 +88,8 @@ def validate(val_loader, model, criterion, logger):
         batch_time.update(time.time() - end)
         end = time.time()
 
-        logger.append([None, None, losses.avg, None, top1.avg])
+        if logger is not None:
+            logger.append([None, None, losses.avg, None, top1.avg])
         progbar.add(1, values=[("p1", top1.avg), ("p5", top5.avg), ("loss", losses.avg)])
 
         '''
@@ -244,7 +245,7 @@ def main(argv=None):
 
     if args.evaluate:
         print('\nEvaluating only ...')
-        val_acc = validate(dataloders['val'], model, criterion)
+        val_acc = validate(dataloders['val'], model, criterion, None)
         print ('val hit@1 {acc:.4f}'.format(acc=val_acc))
         print ('-'*10)
         return
