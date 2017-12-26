@@ -54,7 +54,7 @@ class Logger(object):
     def append(self, numbers):
         assert len(self.names) == len(numbers), 'Numbers do not match names'
         for index, num in enumerate(numbers):
-            if num == None:
+            if num == None or num == '':
                 self.file.write(',')
                 continue
             self.file.write("{0:.6f}".format(num))

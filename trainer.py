@@ -88,7 +88,9 @@ def validate(val_loader, model, criterion, logger):
         batch_time.update(time.time() - end)
         end = time.time()
 
-        if logger is not None:
+        if args.evaluate:
+            logger.append([losses.avg, top1.avg])
+        else
             logger.append([None, None, losses.avg, None, top1.avg])
         progbar.add(1, values=[("p1", top1.avg), ("p5", top5.avg), ("loss", losses.avg)])
 
@@ -245,7 +247,21 @@ def main(argv=None):
 
     if args.evaluate:
         print('\nEvaluating only ...')
-        val_acc = validate(dataloders['val'], model, criterion, None)
+        if args.resume:
+            print('==> Resuming from checkpoint...')
+            print(args.resume)
+            assert os.path.isfile(args.resume), 'Error: no checkpoint directory found!'
+            args.checkpoint = os.path.dirname(args.resume)
+            checkpoint = torch.load(args.resume)
+            best_prec1 = checkpoint['best_prec1']
+            model.load_state_dict(checkpoint['state_dict'])
+            print ('best_prec1 hit@1 {acc:.4f}\n'.format(acc=best_prec1))
+
+        title = 'cifar-10-' + args.arch
+        logger = Logger(os.path.join(args.checkpoint, 'evaluate-log.txt'), title=title)
+        logger.set_names(['Valid Loss', 'Valid Acc.'])
+
+        val_acc = validate(dataloders['val'], model, criterion, logger)
         print ('val hit@1 {acc:.4f}'.format(acc=val_acc))
         print ('-'*10)
         return
