@@ -107,7 +107,7 @@ def validate(val_loader, model, criterion, logger):
 
     return top1.avg
 
-def train_model(model, criterion, optimizer, scheduler, logger):
+def train_model(model, criterion, optimizer, scheduler):
     since = time.time()
 
     losses = AverageMeter()
@@ -121,7 +121,23 @@ def train_model(model, criterion, optimizer, scheduler, logger):
 
     stop = 0
 
-    for epoch in range(args.start_epoch, args.epochs):
+    title = 'cifar-10-' + args.arch
+    if args.resume:
+        print('==> Resuming from checkpoint...')
+        print(args.resume)
+        assert os.path.isfile(args.resume), 'Error: no checkpoint directory found!'
+        args.checkpoint = os.path.dirname(args.resume)
+        checkpoint = torch.load(args.resume)
+        best_prec1 = checkpoint['best_prec1']
+        start_epoch = checkpoint['epoch']+1
+        model.load_state_dict(checkpoint['state_dict'])
+        optimizer.load_state_dict(checkpoint['optimizer'])
+        logger = Logger(os.path.join(args.checkpoint, 'log.txt'), title=title, resume=True)
+    else:
+        logger = Logger(os.path.join(args.checkpoint, 'log.txt'), title=title)
+        logger.set_names(['Learning Rate', 'Train Loss', 'Valid Loss', 'Train Acc.', 'Valid Acc.'])
+
+    for epoch in range(start_epoch, args.epochs):
 
         scheduler.step()
         model.train() # Set model to training mode
@@ -222,21 +238,6 @@ def main(argv=None):
 
     print('    Total params: %.2fM' % (sum(p.numel() for p in model.parameters())/1000000.0))
 
-    title = 'cifar-10-' + args.arch
-    if args.resume:
-        print('==> Resuming from checkpoint...')
-        print(args.resume)
-        assert os.path.isfile(args.resume), 'Error: no checkpoint directory found!'
-        args.checkpoint = os.path.dirname(args.resume)
-        checkpoint = torch.load(args.resume)
-        best_acc = checkpoint['best_prec1']
-        args.start_epoch = checkpoint['epoch']
-        model.load_state_dict(checkpoint['state_dict'])
-        optimizer.load_state_dict(checkpoint['optimizer'])
-        logger = Logger(os.path.join(args.checkpoint, 'log.txt'), title=title, resume=True)
-    else:
-        logger = Logger(os.path.join(args.checkpoint, 'log.txt'), title=title)
-        logger.set_names(['Learning Rate', 'Train Loss', 'Valid Loss', 'Train Acc.', 'Valid Acc.'])
 
     criterion = nn.CrossEntropyLoss()
 
@@ -250,7 +251,7 @@ def main(argv=None):
     # Decay LR by a factor of 0.1 every 10 epochs
     exp_lr_scheduler = lr_scheduler.StepLR(optimizer, step_size=10, gamma=args.gamma)
 
-    model = train_model(model, criterion, optimizer, exp_lr_scheduler, logger)
+    model = train_model(model, criterion, optimizer, exp_lr_scheduler)
 
 
 if __name__ == '__main__':
