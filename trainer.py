@@ -20,6 +20,11 @@ from utils import save_checkpoint, load_checkpoint, AverageMeter, Logger, accura
 from constant import ROOT_PATH
 from data_provider import dataloders, class_names, batch_nums
 
+logprint = logging.getLogger(__file__)
+logging.basicConfig(
+    format="[%(asctime)s - %(filename)s:line %(lineno)s] %(message)s",
+        datefmt='%d %b %H:%M:%S')
+logprint.setLevel(logging.INFO)
 
 model_names = sorted(name for name in models.__dict__
     if name.islower() and not name.startswith("__")
@@ -37,7 +42,7 @@ def parse_args():
                         ' | '.join(model_names) + ' (default: resnet18)')
     parser.add_argument('--epochs', default=300, type=int, metavar='N',
                         help='number of total epochs to run')
-    parser.add_argument('--lr', '--learning-rate', default=0.01, type=float,
+    parser.add_argument('--lr', '--learning-rate', default=0.001, type=float,
                         metavar='LR', help='initial learning rate')
     parser.add_argument('--gamma', type=float, default=0.1, help='LR is multiplied by gamma on schedule.')
     parser.add_argument('--momentum', default=0.9, type=float, metavar='M',
@@ -50,6 +55,8 @@ def parse_args():
                         help='evaluate model on validation set')
     parser.add_argument('--start-epoch', default=0, type=int, metavar='N',
                         help='manual epoch number (useful on restarts)')
+    parser.add_argument('--overwrite', dest='overwrite', action='store_true',
+                        help='overwrite checkpoint ')
     args = parser.parse_args()
     return args
 
@@ -90,7 +97,7 @@ def validate(val_loader, model, criterion, logger):
 
         if args.evaluate:
             logger.append([losses.avg, top1.avg])
-        else
+        else:
             logger.append([None, None, losses.avg, None, top1.avg])
         progbar.add(1, values=[("p1", top1.avg), ("p5", top5.avg), ("loss", losses.avg)])
 
@@ -125,6 +132,8 @@ def train_model(model, criterion, optimizer, scheduler):
 
     stop = 0
 
+    log_file = os.path.join(args.checkpoint, 'log.txt')
+
     title = 'cifar-10-' + args.arch
     if args.resume:
         print('==> Resuming from checkpoint...')
@@ -136,9 +145,12 @@ def train_model(model, criterion, optimizer, scheduler):
         start_epoch = checkpoint['epoch']+1
         model.load_state_dict(checkpoint['state_dict'])
         optimizer.load_state_dict(checkpoint['optimizer'])
-        logger = Logger(os.path.join(args.checkpoint, 'log.txt'), title=title, resume=True)
+        logger = Logger(log_file, title=title, resume=True)
     else:
-        logger = Logger(os.path.join(args.checkpoint, 'log.txt'), title=title)
+        if os.path.exists(log_file) and not args.overwrite:
+            logprint.info('%s exists. skip', log_file)
+            return 0
+        logger = Logger(log_file, title=title)
         logger.set_names(['Learning Rate', 'Train Loss', 'Valid Loss', 'Train Acc.', 'Valid Acc.'])
 
     for epoch in range(start_epoch, args.epochs):
@@ -255,7 +267,7 @@ def main(argv=None):
             checkpoint = torch.load(args.resume)
             best_prec1 = checkpoint['best_prec1']
             model.load_state_dict(checkpoint['state_dict'])
-            print ('best_prec1 hit@1 {acc:.4f}\n'.format(acc=best_prec1))
+            print ('best_prec1 hit@1 {acc:.4f}'.format(acc=best_prec1))
 
         title = 'cifar-10-' + args.arch
         logger = Logger(os.path.join(args.checkpoint, 'evaluate-log.txt'), title=title)
