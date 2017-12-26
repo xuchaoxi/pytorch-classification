@@ -118,6 +118,7 @@ def train_model(model, criterion, optimizer, scheduler):
     best_prec1 = 0
     train_loader = dataloders['train']
     train_batch_num = batch_nums['train']
+    start_epoch = args.start_epoch
 
     stop = 0
 
