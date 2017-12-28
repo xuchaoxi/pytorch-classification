@@ -205,16 +205,16 @@ def train_model(model, criterion, optimizer, scheduler):
         stop += 1
         print(' * Best Prec@1 {top1:.3f}'.format(top1=best_prec1))
 
+        save_checkpoint({
+                'epoch': epoch,
+                'state_dict': model.state_dict(),
+                'best_prec1': best_prec1,
+                'optimizer' : optimizer.state_dict(),
+                }, is_best, filename='checkpoint_epoch{epoch}.pth.tar'.format(epoch=epoch), checkpoint=args.checkpoint)
         # deep copy the model
         if is_best:
             best_model_wts = model.state_dict()
             print ('better model obtained at epoch {epoch}'.format(epoch=epoch))
-            save_checkpoint({
-                    'epoch': epoch,
-                    'state_dict': model.state_dict(),
-                    'best_prec1': best_prec1,
-                    'optimizer' : optimizer.state_dict(),
-                    }, is_best, filename='checkpoint_epoch{epoch}.pth.tar'.format(epoch=epoch), checkpoint=args.checkpoint)
             stop = 0
         if(stop >= 20):
             print("\nEarly stop happend at {}\n".format(epoch))
